@@ -75,6 +75,8 @@ graph LR
 
 ## 💼 Business Value
 
+Business admin panel - https://squeeze-mini.web.app/
+
 ### For Investors
 
 #### Market Opportunity
@@ -461,18 +463,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Lemon Cash** - For the amazing Mini App SDK and platform
 - **shadcn/ui** - For beautiful, accessible components
 - **Vercel** - For Next.js and hosting platform
-
----
-
-## 📞 Contact
-
-**Project Maintainer**: [Your Name]
-
-- 🐦 Twitter: [@yourhandle](https://twitter.com/yourhandle)
-- 💼 LinkedIn: [Your Profile](https://linkedin.com/in/yourprofile)
-- 📧 Email: your.email@example.com
-
-**Project Link**: [https://github.com/yourusername/squeeze2025](https://github.com/yourusername/squeeze2025)
 
 ---
 
