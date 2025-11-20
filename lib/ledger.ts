@@ -19,6 +19,11 @@ type Business = {
   description?: string // New field
   category?: string // New field
   products?: Product[] // New field for catalog
+  location?: {
+    lat: number
+    lng: number
+    address: string
+  }
 }
 
 type BusinessLedger = {
@@ -41,6 +46,11 @@ export type BusinessProfile = {
   description?: string // New field
   category?: string // New field
   products?: Product[] // New field for catalog
+  location?: {
+    lat: number
+    lng: number
+    address: string
+  }
 }
 
 export type Product = {
@@ -127,6 +137,11 @@ export async function registerBusiness(
   description?: string,
   category?: string,
   products?: Product[],
+  location?: {
+    lat: number
+    lng: number
+    address: string
+  },
 ): Promise<void> {
   const businesses = await getBin<BusinessLedger>(BUSINESSES_BIN_URL)
   businesses[walletAddress] = {
@@ -135,6 +150,7 @@ export async function registerBusiness(
     description,
     category,
     products,
+    location,
   }
   await updateBin(BUSINESSES_BIN_URL, businesses)
 }
@@ -167,6 +183,7 @@ export async function getBusinesses(): Promise<BusinessProfile[]> {
       description: business.description, // Include new fields
       category: business.category,
       products: business.products,
+      location: business.location,
     })
   }
 
@@ -180,6 +197,11 @@ export async function seedMockBusinesses(): Promise<void> {
       name: "Lemon Coffee",
       description: "Premium coffee shop with a citrus twist",
       category: "Food & Beverage",
+      location: {
+        lat: 40.758,
+        lng: -73.9855,
+        address: "123 Broadway, New York, NY 10001",
+      },
       products: [
         { id: 1, name: "Lemon Cold Brew", price: 4.5, category: "Drinks" },
         { id: 2, name: "Cappuccino", price: 4.0, category: "Drinks" },
@@ -191,6 +213,11 @@ export async function seedMockBusinesses(): Promise<void> {
       name: "Crypto Burgers",
       description: "Gourmet burgers for the blockchain era",
       category: "Food & Beverage",
+      location: {
+        lat: 34.0522,
+        lng: -118.2437,
+        address: "456 Sunset Blvd, Los Angeles, CA 90028",
+      },
       products: [
         { id: 1, name: "Classic Burger", price: 8.0, category: "Food" },
         { id: 2, name: "Crypto Combo", price: 12.0, category: "Food" },
@@ -201,6 +228,11 @@ export async function seedMockBusinesses(): Promise<void> {
       name: "Pixel Art Store",
       description: "Custom NFT and digital art prints",
       category: "Art & Design",
+      location: {
+        lat: 37.7749,
+        lng: -122.4194,
+        address: "789 Market St, San Francisco, CA 94103",
+      },
       products: [
         { id: 1, name: "Custom NFT Print", price: 25.0, category: "Art" },
         { id: 2, name: "Pixel Avatar", price: 15.0, category: "Art" },
@@ -211,6 +243,11 @@ export async function seedMockBusinesses(): Promise<void> {
       name: "Base Electronics",
       description: "Tech gadgets and accessories",
       category: "Electronics",
+      location: {
+        lat: 41.8781,
+        lng: -87.6298,
+        address: "321 Michigan Ave, Chicago, IL 60601",
+      },
       products: [
         { id: 1, name: "USB-C Cable", price: 12.0, category: "Accessories" },
         { id: 2, name: "Wireless Mouse", price: 25.0, category: "Accessories" },

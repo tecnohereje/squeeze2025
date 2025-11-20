@@ -10,9 +10,11 @@ interface GeneralSaleProps {
 }
 
 export default function GeneralSale({ businessName, wallet }: GeneralSaleProps) {
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=squeeze://pay?businessName=${encodeURIComponent(
-    businessName,
-  )}&recipient=${wallet}&margin=0`
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
+    `lemoncash://app/mini-apps/webview/squeeze?page=payment&businessName=${encodeURIComponent(
+      businessName,
+    )}&recipient=${wallet}`,
+  )}&margin=0`
 
   const handleCopy = () => {
     navigator.clipboard.writeText(wallet)

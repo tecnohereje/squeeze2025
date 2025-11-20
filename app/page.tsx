@@ -109,10 +109,13 @@ export default function MiniApp() {
     }
 
     const params = new URLSearchParams(window.location.search)
+    const page = params.get("page")
     const businessName = params.get("businessName")
     const recipient = params.get("recipient")
     const amount = params.get("amount")
-    if (businessName && recipient) {
+
+    // If deeplink contains page=payment with business data, navigate to payment interface
+    if (page === "payment" && businessName && recipient) {
       setPaymentBusinessName(businessName)
       setPaymentRecipientAddress(recipient)
       if (amount) setPaymentAmount(amount)
@@ -253,9 +256,11 @@ export default function MiniApp() {
       alert("Cart is empty.")
       return
     }
-    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=squeeze://pay?businessName=${encodeURIComponent(
-      businessData?.name || "",
-    )}&recipient=${wallet}&amount=${totalAmount}&margin=0`
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
+      `lemoncash://app/mini-apps/webview/squeeze?page=payment&businessName=${encodeURIComponent(
+        businessData?.name || "",
+      )}&recipient=${wallet}&amount=${totalAmount}`,
+    )}&margin=0`
     setQrCodeUrl(url)
     setScreenState("qrCodeDisplay")
   }

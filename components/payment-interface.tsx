@@ -1,12 +1,10 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Camera, Loader2 } from "lucide-react"
+import { Camera, Loader2, X, Edit3 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 
 interface PaymentInterfaceProps {
@@ -32,7 +30,8 @@ export default function PaymentInterface({
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState("")
   const [showDemoInput, setShowDemoInput] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
 
   useEffect(() => {
     setBusinessName(initialBusinessName)
@@ -41,57 +40,105 @@ export default function PaymentInterface({
   }, [initialBusinessName, initialRecipientAddress, initialAmount])
 
   useEffect(() => {
-    if (!businessName && !recipientAddress) {
-      fileInputRef.current?.click()
-
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === "visible") {
-          setTimeout(() => {
-            if (fileInputRef.current?.files?.length === 0) {
-              onCancel()
-            }
-          }, 200)
-        }
-      }
-
-      document.addEventListener("visibilitychange", handleVisibilityChange)
-
-      return () => {
-        document.removeEventListener("visibilitychange", handleVisibilityChange)
+    return () => {
+      if (html5QrCodeRef.current?.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error)
       }
     }
-  }, [businessName, recipientAddress, onCancel])
+  }, [])
 
-  const handleScanFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) {
-      setScanError("No file selected")
-      return
-    }
-
+  const startCameraScanning = async () => {
     setIsScanning(true)
     setScanError("")
 
-    const html5QrCode = new Html5Qrcode("qr-code-reader", false)
-    html5QrCode
-      .scanFile(file, false)
-      .then((decodedText) => {
-        handleScanSuccess(decodedText)
-        setIsScanning(false)
-      })
-      .catch((err) => {
-        setScanError("Invalid QR code. Please try again or enter details manually.")
-        setIsScanning(false)
-        setShowDemoInput(true)
-      })
+    try {
+      const qrCodeReaderId = "qr-code-reader"
+
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode(qrCodeReaderId)
+      }
+
+      const qrCodeScanner = html5QrCodeRef.current
+
+      if (qrCodeScanner.isScanning) {
+        return
+      }
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      }
+
+      await qrCodeScanner.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+          handleScanSuccess(decodedText)
+          stopCameraScanning()
+        },
+        (errorMessage) => {
+          console.log("[v0] QR scan ongoing:", errorMessage)
+        },
+      )
+
+      setIsCameraActive(true)
+      setIsScanning(false)
+    } catch (err: any) {
+      console.error("[v0] Camera error:", err)
+      setIsScanning(false)
+      setIsCameraActive(false)
+
+      if (err.name === "NotAllowedError") {
+        setScanError("Camera permission denied. Please enable camera access in your browser settings.")
+      } else if (err.name === "NotFoundError") {
+        setScanError("No camera found on this device.")
+      } else if (err.name === "NotReadableError") {
+        setScanError("Camera is already in use by another application.")
+      } else if (err.toString().includes("NotSupportedError") || err.toString().includes("HTTPS")) {
+        setScanError("Camera requires a secure connection (HTTPS). Please use manual input.")
+      } else {
+        setScanError("Unable to access camera. Please use manual input.")
+      }
+
+      setShowDemoInput(true)
+    }
+  }
+
+  const stopCameraScanning = () => {
+    if (html5QrCodeRef.current?.isScanning) {
+      html5QrCodeRef.current
+        .stop()
+        .then(() => {
+          setIsCameraActive(false)
+          setIsScanning(false)
+        })
+        .catch((err) => {
+          console.error("[v0] Error stopping camera:", err)
+          setIsCameraActive(false)
+          setIsScanning(false)
+        })
+    } else {
+      setIsCameraActive(false)
+      setIsScanning(false)
+    }
   }
 
   const handleScanSuccess = (decodedText: string) => {
+    console.log("[v0] QR Code detected:", decodedText)
     try {
-      const url = new URL(decodedText)
-      const name = url.searchParams.get("businessName")
-      const recipient = url.searchParams.get("recipient")
-      const amountFromQR = url.searchParams.get("amount")
+      let parsedUrl: URL
+
+      if (decodedText.startsWith("lemoncash://")) {
+        const urlPart = decodedText.replace("lemoncash://app/mini-apps/webview/squeeze", "https://dummy.com")
+        parsedUrl = new URL(urlPart)
+      } else {
+        parsedUrl = new URL(decodedText)
+      }
+
+      const name = parsedUrl.searchParams.get("businessName")
+      const recipient = parsedUrl.searchParams.get("recipient")
+      const amountFromQR = parsedUrl.searchParams.get("amount")
 
       if (name && recipient) {
         setBusinessName(name)
@@ -139,27 +186,18 @@ export default function PaymentInterface({
           Scan a business QR code or enter payment details manually
         </p>
 
-        {!showDemoInput && (
+        {!showDemoInput && !isCameraActive && (
           <div className="my-6 flex flex-col items-center gap-4">
             <Button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={startCameraScanning}
               disabled={isScanning}
               className="w-32 h-32 rounded-full bg-lime-gradient-vibrant hover:opacity-90 shadow-lg disabled:opacity-50"
             >
               {isScanning ? <Loader2 className="w-16 h-16 animate-spin" /> : <Camera className="w-16 h-16" />}
             </Button>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              ref={fileInputRef}
-              onChange={handleScanFile}
-              className="hidden"
-            />
-            <div id="qr-code-reader" className="hidden"></div>
 
             {scanError && (
-              <div className="text-sm text-red-600 text-center bg-red-50 p-3 rounded-lg border border-red-200">
+              <div className="text-sm text-red-600 text-center bg-red-50 p-3 rounded-lg border border-red-200 max-w-xs">
                 {scanError}
               </div>
             )}
@@ -169,12 +207,40 @@ export default function PaymentInterface({
               variant="ghost"
               className="text-forest-700 hover:bg-lime-100"
             >
+              <Edit3 className="w-4 h-4 mr-2" />
               Enter Details Manually
             </Button>
           </div>
         )}
 
-        {showDemoInput && (
+        {isCameraActive && (
+          <div className="my-6 flex flex-col items-center gap-4">
+            <div className="relative w-full max-w-sm aspect-square bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-lime-500">
+              <div id="qr-code-reader" className="w-full h-full"></div>
+              <Button
+                onClick={stopCameraScanning}
+                variant="ghost"
+                className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-10 h-10 p-0"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <p className="text-sm text-forest-600 text-center">Position the QR code within the frame</p>
+            <Button
+              onClick={() => {
+                stopCameraScanning()
+                setShowDemoInput(true)
+              }}
+              variant="ghost"
+              className="text-forest-700 hover:bg-lime-100"
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Enter Manually Instead
+            </Button>
+          </div>
+        )}
+
+        {showDemoInput && !isCameraActive && (
           <div className="space-y-4 mb-6">
             <div>
               <label className="text-sm font-medium text-forest-700 mb-1 block">Business Name</label>
@@ -197,7 +263,6 @@ export default function PaymentInterface({
             <Button
               onClick={() => {
                 if (businessName && recipientAddress) {
-                  // Trigger re-render to show payment screen
                   setBusinessName(businessName)
                   setRecipientAddress(recipientAddress)
                 }
@@ -212,13 +277,17 @@ export default function PaymentInterface({
               variant="ghost"
               className="w-full text-forest-700 hover:bg-lime-100"
             >
+              <Camera className="w-4 h-4 mr-2" />
               Back to Scanner
             </Button>
           </div>
         )}
 
         <Button
-          onClick={onCancel}
+          onClick={() => {
+            stopCameraScanning()
+            onCancel()
+          }}
           variant="outline"
           className="w-full border-lime-300 hover:bg-lime-50 text-forest-700 bg-transparent"
         >

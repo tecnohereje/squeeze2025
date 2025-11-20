@@ -21,9 +21,11 @@ export default function SpecificSale({ businessName, wallet }: SpecificSaleProps
       alert("Please enter a valid amount")
       return
     }
-    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=squeeze://pay?businessName=${encodeURIComponent(
-      businessName,
-    )}&recipient=${wallet}&amount=${amount}&margin=0`
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
+      `lemoncash://app/mini-apps/webview/squeeze?page=payment&businessName=${encodeURIComponent(
+        businessName,
+      )}&recipient=${wallet}&amount=${amount}`,
+    )}&margin=0`
     setQrCodeUrl(url)
   }
 
