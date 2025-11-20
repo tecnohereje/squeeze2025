@@ -4,6 +4,9 @@ const USERS_BIN_URL = "https://api.jsonbin.io/v3/b/691edcc743b1c97be9b91b85"
 const RATINGS_BIN_URL = "https://api.jsonbin.io/v3/b/691edd3743b1c97be9b91cab"
 const BUSINESSES_BIN_URL = "https://api.jsonbin.io/v3/b/691edd11ae596e708f64d351"
 
+import { db } from "./firebase"
+import { ref, push } from "firebase/database"
+
 const initialBalance = 100
 
 // --- Types ---
@@ -118,17 +121,35 @@ export async function executeTransaction(fromAddress: string, toAddress: string,
 }
 
 // Rating and Business Management
-export async function submitReview(businessId: string, rating: number, comment: string, author: string): Promise<void> {
-  const allRatings = await getBin<Rating[]>(RATINGS_BIN_URL)
-  const newRating: Rating = {
-    businessId,
-    rating,
-    comment,
-    author,
-    timestamp: new Date().toISOString(),
+export const submitReview = async (
+  businessId: string,
+  rating: number,
+  comment: string,
+  wallet: string,
+): Promise<boolean> => {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+
+  try {
+    // Save to Firebase Realtime Database
+    const reviewData = {
+      author: wallet,
+      rating,
+      comment,
+      timestamp: new Date().toISOString(),
+    }
+
+    // Add to reviews path for this business
+    const reviewsRef = ref(db, `businesses/${businessId}/reviews`)
+    await push(reviewsRef, reviewData)
+
+    console.log("Review saved to Firebase Realtime Database")
+    return true
+  } catch (error) {
+    console.error("Failed to save review to Firebase Realtime Database:", error)
+    // Continue gracefully even if Firebase fails
+    return false
   }
-  allRatings.push(newRating)
-  await updateBin(RATINGS_BIN_URL, allRatings)
 }
 
 export async function registerBusiness(

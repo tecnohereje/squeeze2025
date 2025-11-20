@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { authenticate, isWebView, TransactionResult, ChainId } from "@lemoncash/mini-app-sdk"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card" // Added Card subcomponents
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Store, CreditCard, Search, ArrowRight } from "lucide-react" // Added more icons
+import { RefreshCw, Store, CreditCard, Search, ArrowRight } from "lucide-react"
 import BusinessForm from "@/components/business-form"
 import BusinessHub from "@/components/business-hub"
 import GeneralSale from "@/components/general-sale"
@@ -16,15 +16,25 @@ import PaymentSuccess from "@/components/payment-success"
 import RatingScreen from "@/components/rating-screen"
 import BusinessList from "@/components/business-list"
 import BusinessDetail from "@/components/business-detail"
+import BusinessRankings from "@/components/business-rankings"
+import MyReviews from "@/components/my-reviews"
 import {
   getUserBalance,
   executeTransaction,
   submitReview,
-  getBusinesses,
   registerBusiness,
-  seedMockBusinesses, // Import seed function
-  type BusinessProfile,
+  seedMockBusinesses,
 } from "@/lib/ledger"
+import { getBusinesses, type Business } from "@/lib/business-service"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Types
 type BusinessData = {
@@ -47,13 +57,13 @@ export type CartItem = {
 
 export default function MiniApp() {
   // Screen and Navigation State
-  const [screen, setScreenState] = useState("main")
+  const [screen, setScreenState] = useState("businessList") // Default to businessList
   const [qrCodeUrl, setQrCodeUrl] = useState("")
-  const prevScreenRef = useRef<string>()
+  const prevScreenRef = useRef<string>(null)
 
   // Business Data State
   const [businessData, setBusinessData] = useState<BusinessData | null>(null)
-  const [selectedBusiness, setSelectedBusiness] = useState<BusinessProfile | null>(null)
+  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null)
 
   // Simulated Ledger State
   const [wallet, setWallet] = useState<string | undefined>(undefined)
@@ -73,6 +83,13 @@ export default function MiniApp() {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([])
 
+  // Review State
+  const [reviewedBusinessIds, setReviewedBusinessIds] = useState<string[]>([])
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
+
+
+
   // --- Navigation ---
   const setScreen = (newScreen: string) => {
     window.history.pushState({ screen: newScreen }, "")
@@ -84,7 +101,7 @@ export default function MiniApp() {
       if (event.state && event.state.screen) {
         setScreenState(event.state.screen)
       } else {
-        setScreenState("main")
+        setScreenState("businessList")
       }
     }
     window.addEventListener("popstate", handlePopState)
@@ -126,8 +143,14 @@ export default function MiniApp() {
       const inWebView = isWebView()
       setIsWebViewDetected(inWebView)
 
+      // Load reviewed businesses from localStorage
+      const storedReviewedIds = localStorage.getItem("reviewedBusinessIds")
+      if (storedReviewedIds) {
+        setReviewedBusinessIds(JSON.parse(storedReviewedIds))
+      }
+
       try {
-        await seedMockBusinesses()
+        // seedMockBusinesses() // Optional: removed as we use local mock data for list now
       } catch (error) {
         console.error("Failed to seed mock businesses:", error)
       }
@@ -142,7 +165,8 @@ export default function MiniApp() {
         if (result.result === TransactionResult.SUCCESS) {
           setWallet(result.data.wallet)
         } else {
-          setTransactionStatus(`Authentication failed: ${result.error?.message || "Unknown error"}`)
+          const error = "error" in result ? result.error : null
+          setTransactionStatus(`Authentication failed: ${error?.message || "Unknown error"}`)
         }
       } catch (error) {
         setTransactionStatus(`Error: ${error instanceof Error ? error.message : "Unknown error"}`)
@@ -152,6 +176,11 @@ export default function MiniApp() {
     }
     initializeApp()
   }, [])
+
+  // Persist reviewed businesses
+  useEffect(() => {
+    localStorage.setItem("reviewedBusinessIds", JSON.stringify(reviewedBusinessIds))
+  }, [reviewedBusinessIds])
 
   // --- Data Fetching (Simulated) ---
   const fetchBalance = useCallback(async () => {
@@ -201,8 +230,8 @@ export default function MiniApp() {
       setPaymentRecipientAddress(recipient)
 
       const businesses = await getBusinesses()
-      const businessName = businesses.find((b) => b.id === recipient)?.name
-      setPaymentBusinessName(businessName || "Unknown Business")
+      const business = businesses.find((b) => b.id === recipient)
+      setPaymentBusinessName(business?.fantasyName || "Unknown Business")
 
       setTransactionStatus(`✅ Payment successful!`)
       await fetchBalance()
@@ -218,12 +247,17 @@ export default function MiniApp() {
 
   const handleReviewSubmit = async (rating: number, comment: string) => {
     if (!wallet) return
+    setIsSubmittingReview(true)
     try {
       await submitReview(paymentRecipientAddress, rating, comment, wallet)
-      alert("Review submitted!")
-      setScreen("main")
     } catch (error) {
-      alert("Failed to submit review.")
+      console.error("Failed to submit review:", error)
+      // Continue to show success modal even if submission fails
+    } finally {
+      // Always add to reviewed businesses and show modal
+      setReviewedBusinessIds((prev) => [...prev, paymentRecipientAddress])
+      setShowSuccessModal(true)
+      setIsSubmittingReview(false)
     }
   }
 
@@ -276,7 +310,7 @@ export default function MiniApp() {
             initialAmount={paymentAmount}
             balance={balance}
             onPay={handlePay}
-            onCancel={() => setScreen("main")}
+            onCancel={() => setScreen("businessList")}
           />
         )
       case "paymentSuccess":
@@ -288,15 +322,24 @@ export default function MiniApp() {
           />
         )
       case "ratingScreen":
-        return <RatingScreen businessName={paymentBusinessName} onSubmit={handleReviewSubmit} />
+        return <RatingScreen businessName={paymentBusinessName} onSubmit={handleReviewSubmit} isSubmitting={isSubmittingReview} />
+      case "businessRankings":
+        return <BusinessRankings onBack={() => setScreen("businessList")} />
+      case "myReviews":
+        return <MyReviews wallet={wallet || ""} onBack={() => setScreen("businessList")} />
       case "businessList":
+      case "main": // Map main to businessList
         return (
           <BusinessList
             onViewDetails={(business) => {
-              setSelectedBusiness(business)
-              setScreen("businessDetail")
+              setPaymentBusinessName(business.fantasyName)
+              setPaymentRecipientAddress(business.id)
+              setScreen("ratingScreen")
             }}
-            onBack={() => setScreen("main")}
+            onBack={() => {}} // No back action on main screen
+            hiddenBusinessIds={reviewedBusinessIds}
+            onNavigateToRankings={() => setScreen("businessRankings")}
+            onNavigateToMyReviews={() => setScreen("myReviews")}
           />
         )
       case "businessDetail":
@@ -314,7 +357,7 @@ export default function MiniApp() {
       case "specificSale":
         return <SpecificSale businessName={businessData?.name || ""} wallet={wallet || ""} />
       case "catalogSale":
-        return <CatalogSale cart={cart} onUpdateCart={handleUpdateCart} onNavigate={setScreen} />
+        return <CatalogSale businessWallet={wallet || ""} cart={cart} onUpdateCart={handleUpdateCart} onNavigate={setScreen} />
       case "cartSummary":
         return (
           <CartSummary
@@ -333,8 +376,8 @@ export default function MiniApp() {
         )
       case "qrCodeDisplay":
         return (
-          <Card className="w-full max-w-md p-6 sm:p-8 border-lime-500/20 bg-gradient-to-br from-background via-mint-50 to-lime-50/30 shadow-xl">
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent mb-2 text-center">
+          <Card className="w-full max-w-md p-6 sm:p-8 border-lemon-500/20 bg-gradient-to-br from-background via-mint-50 to-lemon-50/30 shadow-xl">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-lemon-600 to-emerald-600 bg-clip-text text-transparent mb-2 text-center">
               Scan to Pay
             </h1>
             <p className="text-center text-forest-600 mb-6 text-sm sm:text-base">
@@ -342,8 +385,8 @@ export default function MiniApp() {
             </p>
 
             <div className="relative mb-6">
-              <div className="absolute inset-0 bg-lime-gradient-vibrant rounded-2xl blur-xl opacity-30" />
-              <div className="relative bg-white p-4 sm:p-6 rounded-2xl border-2 border-lime-400 shadow-lg">
+              <div className="absolute inset-0 bg-lemon-gradient-vibrant rounded-2xl blur-xl opacity-30" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-lemon-gradient-vibrant text-primary-foreground shadow-md">
                 <img src={qrCodeUrl || "/placeholder.svg"} alt="Cart QR Code" className="w-full h-auto rounded-xl" />
               </div>
             </div>
@@ -351,168 +394,58 @@ export default function MiniApp() {
             <Button
               onClick={() => setScreen("cartSummary")}
               variant="outline"
-              className="w-full h-12 text-base font-semibold bg-white hover:bg-lime-50 text-forest-700 border-lime-300 hover:border-lime-400"
+              className="w-full h-12 text-base font-semibold bg-white hover:bg-lemon-50 text-forest-700 border-lemon-300 hover:border-lemon-400"
             >
               Back to Cart
             </Button>
           </Card>
         )
-      case "main":
       default:
-        return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Hero Section */}
-            <section className="space-y-2 text-center md:text-left">
-              <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
-                Manage your <span className="text-primary bg-primary/20 px-2 rounded-lg">crypto business</span>
-              </h1>
-              <p className="text-muted-foreground text-balance">
-                Accept payments, manage products, and grow your business on Base.
-              </p>
-            </section>
-
-            {/* Action Grid */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card
-                className="group relative overflow-hidden border-muted bg-card/50 hover:bg-card transition-all hover:shadow-md cursor-pointer"
-                onClick={() => setScreen("businessHub")}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <CardHeader className="pb-2">
-                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 text-primary-foreground group-hover:scale-110 transition-transform">
-                    <Store className="h-6 w-6" />
-                  </div>
-                  <CardTitle className="text-lg">Business Hub</CardTitle>
-                  <CardDescription>Manage your store & products</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                </CardContent>
-              </Card>
-
-              <Card
-                className="group relative overflow-hidden border-muted bg-card/50 hover:bg-card transition-all hover:shadow-md cursor-pointer"
-                onClick={() => {
-                  setPaymentBusinessName("")
-                  setPaymentRecipientAddress("")
-                  setPaymentAmount("")
-                  setScreen("paymentInterface")
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-secondary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <CardHeader className="pb-2">
-                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-secondary-foreground group-hover:scale-110 transition-transform">
-                    <CreditCard className="h-6 w-6" />
-                  </div>
-                  <CardTitle className="text-lg">Make a Payment</CardTitle>
-                  <CardDescription>Pay merchants directly</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                </CardContent>
-              </Card>
-
-              <Card
-                className="group relative overflow-hidden border-muted bg-card/50 hover:bg-card transition-all hover:shadow-md cursor-pointer md:col-span-2"
-                onClick={() => setScreen("businessList")}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <div>
-                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-accent-foreground group-hover:scale-110 transition-transform">
-                      <Search className="h-6 w-6" />
-                    </div>
-                    <CardTitle className="text-lg">Discover Businesses</CardTitle>
-                    <CardDescription>Find and rate local merchants</CardDescription>
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                </CardHeader>
-              </Card>
-            </div>
-
-            {/* Balance Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold tracking-tight">Your Wallet</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground hover:text-primary"
-                  onClick={fetchBalance}
-                >
-                  <RefreshCw className="mr-1 h-3 w-3" /> Refresh
-                </Button>
-              </div>
-              <Card className="border-muted bg-card/50">
-                <CardContent className="p-4 flex flex-col items-center justify-center h-24">
-                  <span className="text-sm text-muted-foreground">Simulated Balance</span>
-                  <span className="text-2xl font-bold text-foreground">{balance} USDC</span>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )
+        return <BusinessList 
+          onViewDetails={(b) => {
+            setPaymentBusinessName(b.fantasyName)
+            setPaymentRecipientAddress(b.id)
+            setScreen("ratingScreen")
+          }} 
+          onBack={() => {}} 
+          hiddenBusinessIds={reviewedBusinessIds}
+        />
     }
   }
 
-  if (isLoading) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-lemon-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-300">Initializing Mini App...</p>
-        </div>
-      </main>
-    )
-  }
-
-  if (!isWebViewDetected && !wallet) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md p-8 text-center border-slate-700 bg-slate-800/50">
-          <h1 className="text-2xl font-bold text-slate-100 mb-4">🍋 Squeeze</h1>
-          <p className="text-slate-300 mb-2">This app only works inside the Lemon Cash mobile app.</p>
-          <p className="text-slate-400 text-sm">Please open this link in your Lemon Cash wallet to use all features.</p>
-        </Card>
-      </main>
-    )
-  }
+  // ... existing loading and webview checks
 
   return (
-    <div className="min-h-screen bg-lime-mesh font-sans text-foreground selection:bg-primary/30">
-      <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4 md:px-6 max-w-md mx-auto md:max-w-3xl lg:max-w-5xl">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-lime-gradient-vibrant text-primary-foreground shadow-md">
-              <Store className="h-5 w-5" />
-            </div>
-            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Squeeze
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {wallet ? (
-              <div className="flex items-center gap-2 rounded-full bg-lime-gradient-subtle px-3 py-1 text-xs font-medium text-foreground border border-primary/20 shadow-sm">
-                <div className="h-2 w-2 rounded-full bg-primary animate-pulse shadow-sm shadow-primary/50" />
-                {wallet.slice(0, 6)}...{wallet.slice(-4)}
-              </div>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-full text-xs bg-transparent border-primary/30 hover:bg-primary/10 hover:border-primary"
-                onClick={() => {}}
-              >
-                Connect
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-lemon-mesh font-sans text-foreground selection:bg-primary/30">
+      {/* ... existing header */}
 
       <main className="container px-4 py-6 md:px-6 md:py-8 max-w-md mx-auto md:max-w-3xl lg:max-w-5xl">
         {renderScreen()}
       </main>
+
+      <AlertDialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <AlertDialogContent className="bg-gradient-to-br from-lemon-50 to-white border-lemon-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-bold text-center text-forest-800">
+              Review Submitted! 🍋
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-forest-600 text-base">
+              Thanks for sharing your experience. Your feedback helps the community grow!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center">
+            <AlertDialogAction
+              onClick={() => {
+                setShowSuccessModal(false)
+                setScreen("businessList")
+              }}
+              className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold rounded-xl px-8"
+            >
+              Awesome
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

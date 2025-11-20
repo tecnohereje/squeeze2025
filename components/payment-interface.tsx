@@ -178,8 +178,8 @@ export default function PaymentInterface({
 
   if (!businessName || !recipientAddress) {
     return (
-      <Card className="w-full max-w-md p-6 sm:p-8 border-lime-500/20 bg-gradient-to-br from-background via-mint-50 to-lime-50/30 shadow-xl">
-        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent mb-2 text-center">
+      <Card className="w-full max-w-md p-6 sm:p-8 border-lemon-500/20 bg-gradient-to-br from-background via-amber-50 to-lemon-50/30 shadow-xl">
+        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-lemon-600 to-emerald-600 bg-clip-text text-transparent mb-2 text-center">
           Ready to Pay
         </h1>
         <p className="text-forest-600 text-center mb-6 text-sm sm:text-base">
@@ -191,7 +191,7 @@ export default function PaymentInterface({
             <Button
               onClick={startCameraScanning}
               disabled={isScanning}
-              className="w-32 h-32 rounded-full bg-lime-gradient-vibrant hover:opacity-90 shadow-lg disabled:opacity-50"
+              className="w-32 h-32 rounded-full bg-lemon-gradient-vibrant hover:opacity-90 shadow-lg disabled:opacity-50"
             >
               {isScanning ? <Loader2 className="w-16 h-16 animate-spin" /> : <Camera className="w-16 h-16" />}
             </Button>
@@ -205,7 +205,7 @@ export default function PaymentInterface({
             <Button
               onClick={() => setShowDemoInput(true)}
               variant="ghost"
-              className="text-forest-700 hover:bg-lime-100"
+              className="text-forest-700 hover:bg-lemon-100"
             >
               <Edit3 className="w-4 h-4 mr-2" />
               Enter Details Manually
@@ -215,7 +215,7 @@ export default function PaymentInterface({
 
         {isCameraActive && (
           <div className="my-6 flex flex-col items-center gap-4">
-            <div className="relative w-full max-w-sm aspect-square bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-lime-500">
+            <div className="relative w-full max-w-sm aspect-square bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-lemon-500">
               <div id="qr-code-reader" className="w-full h-full"></div>
               <Button
                 onClick={stopCameraScanning}
@@ -232,7 +232,7 @@ export default function PaymentInterface({
                 setShowDemoInput(true)
               }}
               variant="ghost"
-              className="text-forest-700 hover:bg-lime-100"
+              className="text-forest-700 hover:bg-lemon-100"
             >
               <Edit3 className="w-4 h-4 mr-2" />
               Enter Manually Instead
@@ -248,7 +248,7 @@ export default function PaymentInterface({
                 placeholder="Business Name"
                 value={businessName || ""}
                 onChange={(e) => setBusinessName(e.target.value)}
-                className="bg-white border-lime-300 focus:border-lime-500 text-forest-900"
+                className="bg-white border-lemon-300 focus:border-lemon-500 text-forest-900"
               />
             </div>
             <div>
@@ -257,7 +257,7 @@ export default function PaymentInterface({
                 placeholder="0x..."
                 value={recipientAddress || ""}
                 onChange={(e) => setRecipientAddress(e.target.value)}
-                className="bg-white border-lime-300 focus:border-lime-500 text-forest-900 font-mono text-sm"
+                className="bg-white border-lemon-300 focus:border-lemon-500 text-forest-900 font-mono text-sm"
               />
             </div>
             <Button
@@ -267,7 +267,7 @@ export default function PaymentInterface({
                   setRecipientAddress(recipientAddress)
                 }
               }}
-              className="w-full bg-lime-gradient-vibrant hover:opacity-90 text-forest-900 font-semibold h-11"
+              className="w-full bg-lemon-gradient-vibrant hover:opacity-90 text-forest-900 font-semibold h-11"
               disabled={!businessName || !recipientAddress}
             >
               Continue
@@ -275,7 +275,7 @@ export default function PaymentInterface({
             <Button
               onClick={() => setShowDemoInput(false)}
               variant="ghost"
-              className="w-full text-forest-700 hover:bg-lime-100"
+              className="w-full text-forest-700 hover:bg-lemon-100"
             >
               <Camera className="w-4 h-4 mr-2" />
               Back to Scanner
@@ -289,7 +289,7 @@ export default function PaymentInterface({
             onCancel()
           }}
           variant="outline"
-          className="w-full border-lime-300 hover:bg-lime-50 text-forest-700 bg-transparent"
+          className="w-full border-lemon-300 hover:bg-lemon-50 text-forest-700 bg-transparent"
         >
           Cancel
         </Button>
@@ -298,8 +298,8 @@ export default function PaymentInterface({
   }
 
   return (
-    <Card className="w-full max-w-md p-6 sm:p-8 border-lime-500/20 bg-gradient-to-br from-background via-mint-50 to-lime-50/30 shadow-xl">
-      <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent mb-2 text-center">
+    <Card className="w-full max-w-md p-6 sm:p-8 border-lemon-500/20 bg-gradient-to-br from-background via-amber-50 to-lemon-50/30 shadow-xl">
+      <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-lemon-600 to-emerald-600 bg-clip-text text-transparent mb-2 text-center">
         Pay to {businessName}
       </h1>
       <p className="text-forest-600 text-center mb-6 text-sm sm:text-base">Enter the amount to pay in USDC</p>
@@ -311,7 +311,7 @@ export default function PaymentInterface({
             placeholder="Amount (USDC)"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="bg-white border-2 border-lime-300 focus:border-lime-500 text-forest-900 placeholder-forest-400 text-center text-3xl h-20 pr-16 font-bold"
+            className="bg-white border-2 border-lemon-300 focus:border-lemon-500 text-forest-900 placeholder-forest-400 text-center text-3xl h-20 pr-16 font-bold"
             min="0"
             step="0.01"
             max={balance}
@@ -321,20 +321,20 @@ export default function PaymentInterface({
             <Button
               onClick={() => setAmount(balance)}
               variant="ghost"
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-auto px-3 py-1.5 text-lime-600 hover:bg-lime-100 font-semibold"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-auto px-3 py-1.5 text-lemon-600 hover:bg-lemon-100 font-semibold"
             >
               Max
             </Button>
           )}
         </div>
 
-        <div className="text-sm text-forest-600 text-center bg-lime-50 p-2 rounded-lg border border-lime-200">
+        <div className="text-sm text-forest-600 text-center bg-lemon-50 p-2 rounded-lg border border-lemon-200">
           Available Balance: <span className="font-bold">{balance} USDC</span>
         </div>
 
         <Button
           onClick={handlePayClick}
-          className="w-full bg-lime-gradient-vibrant hover:opacity-90 text-forest-900 font-bold h-14 text-lg shadow-lg"
+          className="w-full bg-lemon-gradient-vibrant hover:opacity-90 text-forest-900 font-bold h-14 text-lg shadow-lg"
         >
           Confirm Payment
         </Button>
@@ -342,7 +342,7 @@ export default function PaymentInterface({
         <Button
           onClick={onCancel}
           variant="outline"
-          className="w-full border-lime-300 hover:bg-lime-50 text-forest-700 bg-transparent"
+          className="w-full border-lemon-300 hover:bg-lemon-50 text-forest-700 bg-transparent"
         >
           Cancel
         </Button>
