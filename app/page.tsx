@@ -1,16 +1,15 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   authenticate,
   isWebView,
   TransactionResult,
   ChainId,
-  callSmartContract,
 } from '@lemoncash/mini-app-sdk';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { QrCode, Landmark } from 'lucide-react';
+import { QrCode, Landmark, RefreshCw, Star, ShoppingBag } from 'lucide-react';
 import BusinessForm from '@/components/business-form';
 import BusinessHub from '@/components/business-hub';
 import GeneralSale from '@/components/general-sale';
@@ -18,6 +17,18 @@ import SpecificSale from '@/components/specific-sale';
 import CatalogSale from '@/components/catalog-sale';
 import CartSummary from '@/components/cart-summary';
 import PaymentInterface from '@/components/payment-interface';
+import PaymentSuccess from '@/components/payment-success';
+import RatingScreen from '@/components/rating-screen';
+import BusinessList from '@/components/business-list';
+import BusinessDetail from '@/components/business-detail';
+import {
+  getUserBalance,
+  executeTransaction,
+  submitReview,
+  getBusinesses,
+  registerBusiness,
+  BusinessProfile,
+} from '@/lib/ledger';
 
 // Types
 type BusinessData = {
@@ -46,8 +57,10 @@ export default function MiniApp() {
 
   // Business Data State
   const [businessData, setBusinessData] = useState<BusinessData | null>(null);
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessProfile | null>(null);
 
-  // Web3 State
+
+  // Simulated Ledger State
   const [wallet, setWallet] = useState<string | undefined>(undefined);
   const [balance, setBalance] = useState<string>('--');
 
@@ -119,6 +132,7 @@ export default function MiniApp() {
       const inWebView = isWebView();
       setIsWebViewDetected(inWebView);
       if (!inWebView) {
+        setWallet('0xDEMO_WALLET_1');
         setIsLoading(false);
         return;
       }
@@ -142,39 +156,32 @@ export default function MiniApp() {
     initializeApp();
   }, []);
 
-  // --- Data Fetching ---
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!wallet) return;
-      try {
-        const response = await fetch(
-          `https://api.routescan.io/v2/network/testnet/evm/84532/etherscan/api?module=account&action=tokenbalance&contractaddress=0x036CbD53842c5426634e7929541eC2318f3dCF7e&address=${wallet}`
-        );
-        const data = await response.json();
-        if (data.status === '1') {
-          const balanceInWei = BigInt(data.result);
-          const balanceInUsdc = Number(balanceInWei) / 1e6;
-          setBalance(balanceInUsdc.toFixed(2));
-        } else {
-          setBalance('0.00');
-        }
-      } catch (error) {
-        setTransactionStatus(
-          `Error fetching balance: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`
-        );
-      }
-    };
-    fetchBalance();
-    const interval = setInterval(fetchBalance, 5000);
-    return () => clearInterval(interval);
+  // --- Data Fetching (Simulated) ---
+  const fetchBalance = useCallback(async () => {
+    if (!wallet) return;
+    try {
+      const userBalance = await getUserBalance(wallet);
+      setBalance(userBalance.toFixed(2));
+    } catch (error) {
+      setTransactionStatus(
+        `Error fetching balance: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
   }, [wallet]);
 
+  useEffect(() => {
+    fetchBalance();
+  }, [fetchBalance]);
+
   // --- Handlers ---
-  const handleBusinessSubmit = (data: BusinessData) => {
+  const handleBusinessSubmit = async (data: BusinessData) => {
     localStorage.setItem('businessData', JSON.stringify(data));
     setBusinessData(data);
+    if (wallet) {
+      await registerBusiness(wallet, data.name);
+    }
     setScreen('businessHub');
   };
 
@@ -183,42 +190,35 @@ export default function MiniApp() {
     setIsTransacting(true);
     setTransactionStatus('');
     try {
-      const amountInSmallestUnit = BigInt(parseFloat(amount) * 1e6);
-      const result = await callSmartContract({
-        chainId: ChainId.BASE,
-        contractAddress: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-        method: 'transfer',
-        abi: [
-          {
-            name: 'transfer',
-            type: 'function',
-            inputs: [
-              { name: '_to', type: 'address' },
-              { name: '_value', type: 'uint256' },
-            ],
-            outputs: [{ name: '', type: 'bool' }],
-            stateMutability: 'nonpayable',
-          },
-        ],
-        args: [recipient, amountInSmallestUnit.toString()],
-      });
-      if (result.result === TransactionResult.SUCCESS) {
-        setTransactionStatus(
-          `✅ Payment successful! Tx: ${result.data.txHash.slice(0, 10)}...`
-        );
-        alert('Payment successful!');
-        setScreen('main');
-      } else {
-        setTransactionStatus(
-          `❌ Payment failed: ${result.error?.message || 'Unknown error'}`
-        );
-      }
+      await executeTransaction(wallet, recipient, parseFloat(amount));
+      setPaymentAmount(amount);
+      setPaymentRecipientAddress(recipient);
+      setPaymentBusinessName(
+        (await getBusinesses()).find((b) => b.id === recipient)?.name ||
+          'Unknown Business'
+      );
+      setTransactionStatus(`✅ Payment successful!`);
+      await fetchBalance();
+      setScreen('paymentSuccess');
     } catch (error) {
       setTransactionStatus(
-        `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `❌ Payment failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     } finally {
       setIsTransacting(false);
+    }
+  };
+
+  const handleReviewSubmit = async (rating: number, comment: string) => {
+    if (!wallet) return;
+    try {
+      await submitReview(paymentRecipientAddress, rating, comment, wallet);
+      alert('Review submitted!');
+      setScreen('main');
+    } catch (error) {
+      alert('Failed to submit review.');
     }
   };
 
@@ -261,7 +261,7 @@ export default function MiniApp() {
       businessData?.name || ''
     )}&recipient=${wallet}&amount=${totalAmount}&margin=0`;
     setQrCodeUrl(url);
-    setScreenState('qrCodeDisplay'); // Use setScreenState to avoid pushing to history
+    setScreenState('qrCodeDisplay');
   };
 
   // --- Screen Rendering ---
@@ -277,6 +277,36 @@ export default function MiniApp() {
             onPay={handlePay}
             onCancel={() => setScreen('main')}
           />
+        );
+      case 'paymentSuccess':
+        return (
+          <PaymentSuccess
+            amount={paymentAmount}
+            businessName={paymentBusinessName}
+            onTimeout={() => setScreen('ratingScreen')}
+          />
+        );
+      case 'ratingScreen':
+        return (
+          <RatingScreen
+            businessName={paymentBusinessName}
+            onSubmit={handleReviewSubmit}
+          />
+        );
+      case 'businessList':
+        return (
+          <BusinessList
+            onViewDetails={(business) => {
+              setSelectedBusiness(business);
+              setScreen('businessDetail');
+            }}
+          />
+        );
+      case 'businessDetail':
+        return selectedBusiness ? (
+          <BusinessDetail business={selectedBusiness} />
+        ) : (
+          <p>Business not found.</p>
         );
       case 'businessForm':
         return (
@@ -386,6 +416,25 @@ export default function MiniApp() {
               >
                 <Landmark className="mr-2 h-6 w-6" /> Go to Payment
               </Button>
+              <Button
+                onClick={() => setScreen('businessList')}
+                className="w-full h-16 text-lg"
+                variant="secondary"
+              >
+                <ShoppingBag className="mr-2 h-6 w-6" /> View Businesses
+              </Button>
+            </div>
+            <div className="mt-6 text-center">
+              <p className="text-slate-400 text-sm">
+                Simulated Balance: {balance} USDC
+              </p>
+              <Button
+                onClick={fetchBalance}
+                variant="link"
+                className="text-lemon-400"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+              </Button>
             </div>
             {transactionStatus && (
               <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-sm mt-6">
@@ -412,7 +461,7 @@ export default function MiniApp() {
     );
   }
 
-  if (!isWebViewDetected) {
+  if (!isWebViewDetected && !wallet) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <Card className="w-full max-w-md p-8 text-center border-slate-700 bg-slate-800/50">
