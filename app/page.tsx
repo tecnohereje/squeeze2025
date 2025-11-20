@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   authenticate,
   isWebView,
@@ -16,27 +16,56 @@ import BusinessHub from '@/components/business-hub';
 import GeneralSale from '@/components/general-sale';
 import SpecificSale from '@/components/specific-sale';
 import CatalogSale from '@/components/catalog-sale';
+import CartSummary from '@/components/cart-summary';
 import PaymentInterface from '@/components/payment-interface';
 
+// Types
 type BusinessData = {
   name: string;
   businessId: string;
   fiscalPermit: string;
 };
 
+export type Product = {
+  id: number;
+  name: string;
+  price: number;
+  category: string;
+};
+
+export type CartItem = {
+  product: Product;
+  quantity: number;
+};
+
 export default function MiniApp() {
+  // Screen and Navigation State
   const [screen, setScreenState] = useState('main');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const prevScreenRef = useRef<string>();
+
+  // Business Data State
   const [businessData, setBusinessData] = useState<BusinessData | null>(null);
+
+  // Web3 State
   const [wallet, setWallet] = useState<string | undefined>(undefined);
   const [balance, setBalance] = useState<string>('--');
+
+  // UI State
   const [isLoading, setIsLoading] = useState(true);
   const [isWebViewDetected, setIsWebViewDetected] = useState(true);
   const [isTransacting, setIsTransacting] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState<string>('');
+
+  // Payment State
   const [paymentBusinessName, setPaymentBusinessName] = useState('');
   const [paymentRecipientAddress, setPaymentRecipientAddress] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
 
+  // Cart State
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  // --- Navigation ---
   const setScreen = (newScreen: string) => {
     window.history.pushState({ screen: newScreen }, '');
     setScreenState(newScreen);
@@ -50,14 +79,25 @@ export default function MiniApp() {
         setScreenState('main');
       }
     };
-
     window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // --- Cart Clearing Logic ---
+  useEffect(() => {
+    const prevScreen = prevScreenRef.current;
+    const catalogFlowScreens = ['catalogSale', 'cartSummary', 'qrCodeDisplay'];
+    if (
+      prevScreen &&
+      catalogFlowScreens.includes(prevScreen) &&
+      !catalogFlowScreens.includes(screen)
+    ) {
+      handleClearCart();
+    }
+    prevScreenRef.current = screen;
+  }, [screen]);
+
+  // --- Initialization ---
   useEffect(() => {
     const storedBusinessData = localStorage.getItem('businessData');
     if (storedBusinessData) {
@@ -68,38 +108,28 @@ export default function MiniApp() {
     const businessName = params.get('businessName');
     const recipient = params.get('recipient');
     const amount = params.get('amount');
-
     if (businessName && recipient) {
       setPaymentBusinessName(businessName);
       setPaymentRecipientAddress(recipient);
-      if (amount) {
-        setPaymentAmount(amount);
-      }
+      if (amount) setPaymentAmount(amount);
       setScreen('paymentInterface');
     }
 
     const initializeApp = async () => {
       const inWebView = isWebView();
       setIsWebViewDetected(inWebView);
-
       if (!inWebView) {
         setIsLoading(false);
         return;
       }
-
       try {
-        const result = await authenticate({
-          chainId: ChainId.BASE,
-        });
-
+        const result = await authenticate({ chainId: ChainId.BASE });
         if (result.result === TransactionResult.SUCCESS) {
           setWallet(result.data.wallet);
-        } else if (result.result === TransactionResult.FAILED) {
+        } else {
           setTransactionStatus(
-            `Authentication failed: ${result.error.message}`
+            `Authentication failed: ${result.error?.message || 'Unknown error'}`
           );
-        } else if (result.result === TransactionResult.CANCELLED) {
-          setTransactionStatus('Authentication was cancelled');
         }
       } catch (error) {
         setTransactionStatus(
@@ -109,14 +139,13 @@ export default function MiniApp() {
         setIsLoading(false);
       }
     };
-
     initializeApp();
   }, []);
 
+  // --- Data Fetching ---
   useEffect(() => {
     const fetchBalance = async () => {
       if (!wallet) return;
-
       try {
         const response = await fetch(
           `https://api.routescan.io/v2/network/testnet/evm/84532/etherscan/api?module=account&action=tokenbalance&contractaddress=0x036CbD53842c5426634e7929541eC2318f3dCF7e&address=${wallet}`
@@ -137,13 +166,12 @@ export default function MiniApp() {
         );
       }
     };
-
     fetchBalance();
     const interval = setInterval(fetchBalance, 5000);
-
     return () => clearInterval(interval);
   }, [wallet]);
 
+  // --- Handlers ---
   const handleBusinessSubmit = (data: BusinessData) => {
     localStorage.setItem('businessData', JSON.stringify(data));
     setBusinessData(data);
@@ -152,10 +180,8 @@ export default function MiniApp() {
 
   const handlePay = async (amount: string, recipient: string) => {
     if (!wallet || !amount || !recipient) return;
-
     setIsTransacting(true);
     setTransactionStatus('');
-
     try {
       const amountInSmallestUnit = BigInt(parseFloat(amount) * 1e6);
       const result = await callSmartContract({
@@ -176,17 +202,16 @@ export default function MiniApp() {
         ],
         args: [recipient, amountInSmallestUnit.toString()],
       });
-
       if (result.result === TransactionResult.SUCCESS) {
         setTransactionStatus(
           `✅ Payment successful! Tx: ${result.data.txHash.slice(0, 10)}...`
         );
         alert('Payment successful!');
         setScreen('main');
-      } else if (result.result === TransactionResult.FAILED) {
-        setTransactionStatus(`❌ Payment failed: ${result.error.message}`);
-      } else if (result.result === TransactionResult.CANCELLED) {
-        setTransactionStatus('❌ Payment was cancelled');
+      } else {
+        setTransactionStatus(
+          `❌ Payment failed: ${result.error?.message || 'Unknown error'}`
+        );
       }
     } catch (error) {
       setTransactionStatus(
@@ -197,6 +222,49 @@ export default function MiniApp() {
     }
   };
 
+  // --- Cart Management ---
+  const handleUpdateCart = (product: Product, quantity: number) => {
+    setCart((prevCart) => {
+      const existingItem = prevCart.find(
+        (item) => item.product.id === product.id
+      );
+      if (existingItem) {
+        if (quantity <= 0) {
+          return prevCart.filter((item) => item.product.id !== product.id);
+        }
+        return prevCart.map((item) =>
+          item.product.id === product.id ? { ...item, quantity } : item
+        );
+      } else {
+        if (quantity > 0) {
+          return [...prevCart, { product, quantity }];
+        }
+        return prevCart;
+      }
+    });
+  };
+
+  const handleClearCart = () => setCart([]);
+
+  const totalAmount = useMemo(() => {
+    return cart
+      .reduce((total, item) => total + item.product.price * item.quantity, 0)
+      .toFixed(2);
+  }, [cart]);
+
+  const handleGenerateCartQr = () => {
+    if (parseFloat(totalAmount) <= 0) {
+      alert('Cart is empty.');
+      return;
+    }
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=squeeze://pay?businessName=${encodeURIComponent(
+      businessData?.name || ''
+    )}&recipient=${wallet}&amount=${totalAmount}&margin=0`;
+    setQrCodeUrl(url);
+    setScreenState('qrCodeDisplay'); // Use setScreenState to avoid pushing to history
+  };
+
+  // --- Screen Rendering ---
   const renderScreen = () => {
     switch (screen) {
       case 'paymentInterface':
@@ -236,9 +304,48 @@ export default function MiniApp() {
       case 'catalogSale':
         return (
           <CatalogSale
-            businessName={businessData?.name || ''}
-            wallet={wallet || ''}
+            cart={cart}
+            onUpdateCart={handleUpdateCart}
+            onNavigate={setScreen}
           />
+        );
+      case 'cartSummary':
+        return (
+          <CartSummary
+            cart={cart}
+            onUpdateQuantity={(productId, quantity) => {
+              const product = cart.find(
+                (item) => item.product.id === productId
+              )?.product;
+              if (product) handleUpdateCart(product, quantity);
+            }}
+            onRemoveItem={(productId) => {
+              const product = cart.find(
+                (item) => item.product.id === productId
+              )?.product;
+              if (product) handleUpdateCart(product, 0);
+            }}
+            onClearCart={handleClearCart}
+            onGenerateQrCode={handleGenerateCartQr}
+          />
+        );
+      case 'qrCodeDisplay':
+        return (
+          <Card className="w-full max-w-md p-8 text-center border-slate-700 bg-slate-800/50">
+            <h1 className="text-2xl font-bold text-slate-100 mb-4">
+              Pay ${totalAmount}
+            </h1>
+            <div className="flex justify-center">
+              <img src={qrCodeUrl} alt="Cart QR Code" className="rounded-2xl" />
+            </div>
+            <Button
+              onClick={() => setScreen('cartSummary')}
+              className="mt-4"
+              variant="outline"
+            >
+              Back to Cart
+            </Button>
+          </Card>
         );
       case 'main':
       default:

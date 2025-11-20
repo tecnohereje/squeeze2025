@@ -3,116 +3,125 @@
 import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { ShoppingCart } from 'lucide-react';
+
+// Types
+type Product = {
+  id: number;
+  name: string;
+  price: number;
+  category: string;
+};
+
+type CartItem = {
+  product: Product;
+  quantity: number;
+};
 
 interface CatalogSaleProps {
   businessName: string;
   wallet: string;
+  cart: CartItem[];
+  onUpdateCart: (product: Product, quantity: number) => void;
+  onNavigate: (screen: 'cartSummary') => void;
 }
 
-const products = [
-  { id: 1, name: 'Coffee', price: 3.5 },
-  { id: 2, name: 'Cappuccino', price: 4.0 },
-  { id: 3, name: 'Latte', price: 4.5 },
-  { id: 4, name: 'Muffin', price: 2.5 },
-  { id: 5, name: 'Croissant', price: 3.0 },
+const products: Product[] = [
+  { id: 1, name: 'Coffee', price: 3.5, category: 'Drinks' },
+  { id: 2, name: 'Cappuccino', price: 4.0, category: 'Drinks' },
+  { id: 3, name: 'Latte', price: 4.5, category: 'Drinks' },
+  { id: 4, name: 'Muffin', price: 2.5, category: 'Bakery' },
+  { id: 5, name: 'Croissant', price: 3.0, category: 'Bakery' },
+  { id: 6, name: 'Sandwich', price: 7.0, category: 'Food' },
+  { id: 7, name: 'Salad', price: 8.5, category: 'Food' },
 ];
 
-export default function CatalogSale({ businessName, wallet }: CatalogSaleProps) {
-  const [selectedItems, setSelectedItems] = useState<number[]>([]);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+const categories = ['All', 'Drinks', 'Bakery', 'Food'];
 
-  const totalAmount = useMemo(() => {
-    return selectedItems
-      .reduce((total, itemId) => {
-        const item = products.find((p) => p.id === itemId);
-        return total + (item?.price || 0);
-      }, 0)
-      .toFixed(2);
-  }, [selectedItems]);
+export default function CatalogSale({
+  cart,
+  onUpdateCart,
+  onNavigate,
+}: CatalogSaleProps) {
+  const [activeCategory, setActiveCategory] = useState('All');
 
-  const handleSelectItem = (itemId: number) => {
-    setSelectedItems((prev) =>
-      prev.includes(itemId)
-        ? prev.filter((id) => id !== itemId)
-        : [...prev, itemId]
-    );
-  };
-
-  const generateQrCode = () => {
-    if (parseFloat(totalAmount) <= 0) {
-      alert('Please select at least one item.');
-      return;
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === 'All') {
+      return products;
     }
-    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=squeeze://pay?businessName=${encodeURIComponent(
-      businessName
-    )}&recipient=${wallet}&amount=${totalAmount}&margin=0`;
-    setQrCodeUrl(url);
-  };
+    return products.filter((p) => p.category === activeCategory);
+  }, [activeCategory]);
 
-  if (qrCodeUrl) {
-    return (
-      <Card className="w-full max-w-md p-8 text-center border-slate-700 bg-slate-800/50">
-        <h1 className="text-2xl font-bold text-slate-100 mb-4">
-          Pay ${totalAmount}
-        </h1>
-        <p className="text-slate-400 mb-6">
-          Your customer can scan this to complete the payment.
-        </p>
-        <div className="flex justify-center">
-          <img
-            src={qrCodeUrl}
-            alt="Catalog Sale QR Code"
-            className="rounded-2xl"
-          />
-        </div>
-        <p className="font-mono text-lemon-400 text-lg break-all text-center pt-4">
-          {wallet}
-        </p>
-        <Button
-          onClick={() => {
-            setQrCodeUrl('');
-            setSelectedItems([]);
-          }}
-          className="mt-4"
-          variant="outline"
-        >
-          Create New Sale
-        </Button>
-      </Card>
-    );
-  }
+  const cartItemCount = useMemo(() => {
+    return cart.reduce((total, item) => total + item.quantity, 0);
+  }, [cart]);
+
+  const getQuantity = (productId: number) => {
+    return cart.find((item) => item.product.id === productId)?.quantity || 0;
+  };
 
   return (
-    <Card className="w-full max-w-md p-8 text-center border-slate-700 bg-slate-800/50">
-      <h1 className="text-2xl font-bold text-slate-100 mb-4">
+    <Card className="w-full max-w-md p-6 border-slate-700 bg-slate-800/50 relative">
+      {cartItemCount > 0 && (
+        <Button
+          onClick={() => onNavigate('cartSummary')}
+          className="absolute top-4 right-4 rounded-full h-12 w-24"
+        >
+          <ShoppingCart className="mr-2" /> Cart ({cartItemCount})
+        </Button>
+      )}
+      <h1 className="text-2xl font-bold text-slate-100 mb-4 text-center">
         Catalog Sale
       </h1>
-      <div className="space-y-4 text-left">
-        {products.map((product) => (
-          <div key={product.id} className="flex items-center space-x-2">
-            <Checkbox
-              id={`product-${product.id}`}
-              checked={selectedItems.includes(product.id)}
-              onCheckedChange={() => handleSelectItem(product.id)}
-            />
-            <Label
-              htmlFor={`product-${product.id}`}
-              className="flex justify-between w-full"
-            >
-              <span>{product.name}</span>
-              <span>${product.price.toFixed(2)}</span>
-            </Label>
+
+      <div className="flex justify-center space-x-2 mb-4">
+        {categories.map((category) => (
+          <Button
+            key={category}
+            variant={activeCategory === category ? 'default' : 'outline'}
+            onClick={() => setActiveCategory(category)}
+          >
+            {category}
+          </Button>
+        ))}
+      </div>
+
+      <div className="space-y-4 text-left h-96 overflow-y-auto">
+        {filteredProducts.map((product) => (
+          <div
+            key={product.id}
+            className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50"
+          >
+            <div>
+              <p className="font-semibold">{product.name}</p>
+              <p className="text-sm text-slate-400">
+                ${product.price.toFixed(2)}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                size="sm"
+                onClick={() =>
+                  onUpdateCart(product, getQuantity(product.id) - 1)
+                }
+                disabled={getQuantity(product.id) === 0}
+              >
+                -
+              </Button>
+              <span>{getQuantity(product.id)}</span>
+              <Button
+                size="sm"
+                onClick={() =>
+                  onUpdateCart(product, getQuantity(product.id) + 1)
+                }
+              >
+                +
+              </Button>
+            </div>
           </div>
         ))}
       </div>
-      <div className="mt-6 text-2xl font-bold text-white">
-        Total: ${totalAmount}
-      </div>
-      <Button onClick={generateQrCode} className="w-full h-12 text-lg mt-4">
-        Generate QR Code
-      </Button>
     </Card>
   );
 }
