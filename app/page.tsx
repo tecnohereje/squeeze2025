@@ -239,7 +239,14 @@ export default function MiniApp() {
   if (screen === 'businessOpen') {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-        {wallet && <BusinessOpen wallet={wallet} balance={balance} onEdit={() => setScreenState('businessForm')} />}
+        {wallet && businessData && (
+          <BusinessOpen
+            businessName={businessData.name}
+            wallet={wallet}
+            balance={balance}
+            onEdit={() => setScreenState('businessForm')}
+          />
+        )}
       </main>
     );
   }
