@@ -66,10 +66,7 @@ export default function BusinessOpen({
 
         <div className="grid grid-cols-1 items-center">
           <Card className="border-0 bg-transparent backdrop-blur-sm p-0 shadow-none">
-            <div
-              className="flex justify-center cursor-pointer"
-              onDoubleClick={handleShare}
-            >
+            <div className="flex justify-center">
               <img
                 src={qrCodeUrl}
                 alt="Business QR Code"

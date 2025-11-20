@@ -12,7 +12,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { QrCode, Landmark } from 'lucide-react';
 import BusinessForm from '@/components/business-form';
-import BusinessOpen from '@/components/business-open';
+import BusinessHub from '@/components/business-hub';
+import GeneralSale from '@/components/general-sale';
+import SpecificSale from '@/components/specific-sale';
+import CatalogSale from '@/components/catalog-sale';
 import PaymentInterface from '@/components/payment-interface';
 
 type BusinessData = {
@@ -32,6 +35,7 @@ export default function MiniApp() {
   const [transactionStatus, setTransactionStatus] = useState<string>('');
   const [paymentBusinessName, setPaymentBusinessName] = useState('');
   const [paymentRecipientAddress, setPaymentRecipientAddress] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
 
   const setScreen = (newScreen: string) => {
     window.history.pushState({ screen: newScreen }, '');
@@ -40,7 +44,11 @@ export default function MiniApp() {
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      setScreenState('main');
+      if (event.state && event.state.screen) {
+        setScreenState(event.state.screen);
+      } else {
+        setScreenState('main');
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -59,10 +67,14 @@ export default function MiniApp() {
     const params = new URLSearchParams(window.location.search);
     const businessName = params.get('businessName');
     const recipient = params.get('recipient');
+    const amount = params.get('amount');
 
     if (businessName && recipient) {
       setPaymentBusinessName(businessName);
       setPaymentRecipientAddress(recipient);
+      if (amount) {
+        setPaymentAmount(amount);
+      }
       setScreen('paymentInterface');
     }
 
@@ -135,7 +147,7 @@ export default function MiniApp() {
   const handleBusinessSubmit = (data: BusinessData) => {
     localStorage.setItem('businessData', JSON.stringify(data));
     setBusinessData(data);
-    setScreen('businessOpen');
+    setScreen('businessHub');
   };
 
   const handlePay = async (amount: string, recipient: string) => {
@@ -185,6 +197,103 @@ export default function MiniApp() {
     }
   };
 
+  const renderScreen = () => {
+    switch (screen) {
+      case 'paymentInterface':
+        return (
+          <PaymentInterface
+            businessName={paymentBusinessName}
+            recipientAddress={paymentRecipientAddress}
+            initialAmount={paymentAmount}
+            balance={balance}
+            onPay={handlePay}
+            onCancel={() => setScreen('main')}
+          />
+        );
+      case 'businessForm':
+        return (
+          <BusinessForm
+            onSubmit={handleBusinessSubmit}
+            initialData={businessData}
+          />
+        );
+      case 'businessHub':
+        return <BusinessHub onNavigate={setScreen} />;
+      case 'generalSale':
+        return (
+          <GeneralSale
+            businessName={businessData?.name || ''}
+            wallet={wallet || ''}
+          />
+        );
+      case 'specificSale':
+        return (
+          <SpecificSale
+            businessName={businessData?.name || ''}
+            wallet={wallet || ''}
+          />
+        );
+      case 'catalogSale':
+        return (
+          <CatalogSale
+            businessName={businessData?.name || ''}
+            wallet={wallet || ''}
+          />
+        );
+      case 'main':
+      default:
+        return (
+          <div className="max-w-2xl mx-auto flex flex-col justify-center items-center h-full">
+            <div className="text-center mb-8 pt-8">
+              <div className="text-5xl mb-3">🍋</div>
+              <h1 className="text-3xl font-bold text-slate-100 mb-2">
+                Squeeze
+              </h1>
+              <p className="text-slate-400">Base Sepolia</p>
+            </div>
+            <div className="w-full max-w-xs space-y-4">
+              {businessData ? (
+                <Button
+                  onClick={() => setScreen('businessHub')}
+                  className="w-full h-24 text-lg bg-lemon-500 hover:bg-lemon-600 text-slate-900 font-semibold"
+                >
+                  <QrCode className="mr-2 h-6 w-6" /> My Business
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setScreen('businessForm')}
+                  className="w-full h-24 text-lg bg-lemon-500 hover:bg-lemon-600 text-slate-900 font-semibold"
+                >
+                  Set up Business
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  setPaymentBusinessName('');
+                  setPaymentRecipientAddress('');
+                  setPaymentAmount('');
+                  setScreen('paymentInterface');
+                }}
+                className="w-full h-24 text-lg"
+                variant="outline"
+              >
+                <Landmark className="mr-2 h-6 w-6" /> Go to Payment
+              </Button>
+            </div>
+            {transactionStatus && (
+              <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-sm mt-6">
+                <div className="p-4">
+                  <p className="text-sm text-slate-300 font-mono break-all">
+                    {transactionStatus}
+                  </p>
+                </div>
+              </Card>
+            )}
+          </div>
+        );
+    }
+  };
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -214,94 +323,9 @@ export default function MiniApp() {
     );
   }
 
-  if (screen === 'paymentInterface') {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <PaymentInterface
-          businessName={paymentBusinessName}
-          recipientAddress={paymentRecipientAddress}
-          balance={balance}
-          onPay={handlePay}
-          onCancel={() => setScreen('main')}
-        />
-      </main>
-    );
-  }
-
-  if (screen === 'businessForm') {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <BusinessForm onSubmit={handleBusinessSubmit} initialData={businessData} />
-      </main>
-    );
-  }
-
-  if (screen === 'businessOpen') {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-        {wallet && businessData && (
-          <BusinessOpen
-            businessName={businessData.name}
-            wallet={wallet}
-            balance={balance}
-            onEdit={() => setScreenState('businessForm')}
-          />
-        )}
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <div className="max-w-2xl mx-auto flex flex-col justify-center items-center h-full">
-        {/* Header */}
-        <div className="text-center mb-8 pt-8">
-          <div className="text-5xl mb-3">🍋</div>
-          <h1 className="text-3xl font-bold text-slate-100 mb-2">
-            Squeeze
-          </h1>
-          <p className="text-slate-400">Base Sepolia</p>
-        </div>
-
-        <div className="w-full max-w-xs space-y-4">
-            {businessData ? (
-              <Button
-                onClick={() => setScreen('businessOpen')}
-                className="w-full h-24 text-lg bg-lemon-500 hover:bg-lemon-600 text-slate-900 font-semibold"
-              >
-                <QrCode className="mr-2 h-6 w-6" /> My Business
-              </Button>
-            ) : (
-              <Button
-                onClick={() => setScreen('businessForm')}
-                className="w-full h-24 text-lg bg-lemon-500 hover:bg-lemon-600 text-slate-900 font-semibold"
-              >
-                Set up Business
-              </Button>
-            )}
-            <Button
-              onClick={() => {
-                setPaymentBusinessName('');
-                setPaymentRecipientAddress('');
-                setScreen('paymentInterface');
-              }}
-              className="w-full h-24 text-lg"
-              variant="outline"
-            >
-              <Landmark className="mr-2 h-6 w-6" /> Go to Payment
-            </Button>
-        </div>
-        
-        {transactionStatus && (
-          <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-sm mt-6">
-            <div className="p-4">
-              <p className="text-sm text-slate-300 font-mono break-all">
-                {transactionStatus}
-              </p>
-            </div>
-          </Card>
-        )}
-      </div>
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 flex items-center justify-center">
+      {renderScreen()}
     </main>
   );
 }

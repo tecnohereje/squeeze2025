@@ -10,6 +10,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 interface PaymentInterfaceProps {
   businessName?: string;
   recipientAddress?: string;
+  initialAmount?: string;
   balance: string;
   onPay: (amount: string, recipient: string) => void;
   onCancel: () => void;
@@ -18,11 +19,12 @@ interface PaymentInterfaceProps {
 export default function PaymentInterface({
   businessName: initialBusinessName,
   recipientAddress: initialRecipientAddress,
+  initialAmount,
   balance,
   onPay,
   onCancel,
 }: PaymentInterfaceProps) {
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(initialAmount || '');
   const [businessName, setBusinessName] = useState(initialBusinessName);
   const [recipientAddress, setRecipientAddress] = useState(
     initialRecipientAddress
@@ -32,7 +34,8 @@ export default function PaymentInterface({
   useEffect(() => {
     setBusinessName(initialBusinessName);
     setRecipientAddress(initialRecipientAddress);
-  }, [initialBusinessName, initialRecipientAddress]);
+    setAmount(initialAmount || '');
+  }, [initialBusinessName, initialRecipientAddress, initialAmount]);
 
   useEffect(() => {
     if (!businessName && !recipientAddress) {
@@ -40,7 +43,6 @@ export default function PaymentInterface({
 
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
-          // A short delay is needed because the file input's value is not updated immediately
           setTimeout(() => {
             if (fileInputRef.current?.files?.length === 0) {
               onCancel();
@@ -82,10 +84,14 @@ export default function PaymentInterface({
       const url = new URL(decodedText);
       const name = url.searchParams.get('businessName');
       const recipient = url.searchParams.get('recipient');
+      const amountFromQR = url.searchParams.get('amount');
 
       if (name && recipient) {
         setBusinessName(name);
         setRecipientAddress(recipient);
+        if (amountFromQR) {
+          setAmount(amountFromQR);
+        }
       } else {
         alert('Invalid QR Code');
       }
@@ -161,14 +167,17 @@ export default function PaymentInterface({
             min="0"
             step="0.01"
             max={balance}
+            readOnly={!!initialAmount}
           />
-          <Button
-            onClick={() => setAmount(balance)}
-            variant="ghost"
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-auto px-2 py-1 text-lemon-400 hover:bg-slate-700"
-          >
-            Max
-          </Button>
+          {!initialAmount && (
+            <Button
+              onClick={() => setAmount(balance)}
+              variant="ghost"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-auto px-2 py-1 text-lemon-400 hover:bg-slate-700"
+            >
+              Max
+            </Button>
+          )}
         </div>
         <div className="text-sm text-slate-400">
           Balance: {balance} USDC
